@@ -17,7 +17,7 @@ specific language governing permissions and limitations
 under the License.
 */
 
-package amqp
+package main
 
 import (
 	"flag"
@@ -30,53 +30,57 @@ import (
 	"sync"
 )
 
-var count = flag.Int64("count", 1, "Send this many messages to each address.")
-var debug = flag.Bool("debug", true, "Print detailed debug output")
-var Debugf = func(format string, data ...interface{}) {} // Default no debugging output
-
 func main() {
+
+	fatalIf := func(err error) {
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	var count = flag.Int64("count", 1, "Send this many messages to each address.")
+	var debug = flag.Bool("debug", true, "Print detailed debug output")
+	var Debugf = func(format string, data ...interface{}) {} // Default no debugging output
+
 	flag.Parse()
 
 	if *debug {
 		Debugf = func(format string, data ...interface{}) { log.Printf(format, data...) }
 	}
 
-	urls := []string{"amqp://127.0.0.1:7171/test-queue"}
+	urlStr := "amqp://127.0.0.1:7171/test-queue"
 
 	sentChan := make(chan electron.Outcome) // Channel to receive acknowledgements.
 
 	var wait sync.WaitGroup
-	wait.Add(len(urls)) // Wait for one goroutine per URL.
+	wait.Add(1) // Wait for one goroutine per URL.
 
 	container := electron.NewContainer(fmt.Sprintf("send[%v]", os.Getpid()))
-	connections := make(chan electron.Connection, len(urls)) // Connections to close on exit
+	connections := make(chan electron.Connection, 1) // Connections to close on exit
 
-	// Start a goroutine for each URL to send messages.
-	for _, urlStr := range urls {
-		Debugf("Connecting to %v\n", urlStr)
-		go func(urlStr string) {
-			defer wait.Done() // Notify main() when this goroutine is done.
-			url, err := amqp.ParseURL(urlStr)
-			fatalIf(err)
-			c, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
-			fatalIf(err)
-			connections <- c // Save connection so we can Close() when main() ends
-			addr := strings.TrimPrefix(url.Path, "/")
-			c.Connection()
-			s, err := c.Sender(electron.Target(addr))
-			fatalIf(err)
-			// Loop sending messages.
-			for i := int64(0); i < *count; i++ {
-				m := amqp.NewMessage()
-				body := fmt.Sprintf("%v%v", addr, i)
-				m.Marshal(body)
-				s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
-			}
-		}(urlStr)
-	}
+	Debugf("Connecting to %v\n", urlStr)
+	go func(urlStr string) {
+		defer wait.Done() // Notify main() when this goroutine is done.
+		url, err := amqp.ParseURL(urlStr)
+		fatalIf(err)
+		c, err := container.Dial("tcp", url.Host) // NOTE: Dial takes just the Host part of the URL
+		fatalIf(err)
+		connections <- c // Save connection so we can Close() when main() ends
+		addr := strings.TrimPrefix(url.Path, "/")
+		c.Connection()
+		s, err := c.Sender(electron.Target(addr))
+		fatalIf(err)
+		// Loop sending messages.
+		for i := int64(0); i < *count; i++ {
+			m := amqp.NewMessage()
+			body := fmt.Sprintf("%v%v", addr, i)
+			m.Marshal(body)
+			s.SendAsync(m, sentChan, body) // Outcome will be sent to sentChan
+		}
+	}(urlStr)
 
 	// Wait for all the acknowledgements
-	expect := int(*count) * len(urls)
+	expect := int(*count)
 	Debugf("Started senders, expect %v acknowledgements\n", expect)
 	for i := 0; i < expect; i++ {
 		out := <-sentChan // Outcome of async sends.
@@ -96,11 +100,5 @@ func main() {
 		if c != nil {
 			c.Close(nil)
 		}
-	}
-}
-
-func fatalIf(err error) {
-	if err != nil {
-		log.Fatal(err)
 	}
 }

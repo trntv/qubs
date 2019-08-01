@@ -16,9 +16,10 @@ TODO:
 - [X] hubs
 - [x] tags
 - [x] cli command
-- [ ] client (consumer, producer)
 - [ ] batch publish
 - [ ] ack/noack
+- [ ] client (consumer, producer)
 - [ ] embedded broker
 - [ ] usage
+- [ ] tests 
 - [ ] .....
