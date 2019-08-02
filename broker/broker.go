@@ -14,10 +14,6 @@ func (b *Broker) GetQueue(hubName string, queueName string) *Queue {
 	return b.getHub(hubName).getQueue(queueName)
 }
 
-func (b *Broker) Dispatch(msg *Message) {
-	b.getHub(msg.hub).getQueue(msg.queue).dispatch(msg)
-}
-
 func (b *Broker) getHub(name string) *Hub {
 	hub, ok := b.hubs[name]
 	if !ok {
@@ -29,7 +25,7 @@ func (b *Broker) getHub(name string) *Hub {
 
 func (b *Broker) createHub(name string) *Hub {
 	hub := &Hub{
-		name: name,
+		name:   name,
 		broker: b,
 		queues: make(map[string]*Queue, 0),
 	}

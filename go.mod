@@ -13,6 +13,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190717042225-c3de453c63f4 // indirect
 	github.com/golang/protobuf v1.3.2
 	github.com/sirupsen/logrus v1.4.2
+	golang.org/x/net v0.0.0-20190311183353-d8887717615a
 	google.golang.org/grpc v1.22.1
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	qpid.apache.org/amqp v0.0.0-00010101000000-000000000000

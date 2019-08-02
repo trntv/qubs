@@ -2,21 +2,23 @@ package broker
 
 import (
 	"errors"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"sort"
+	"sync"
 	"sync/atomic"
 )
 
 const QUEUE_SIZE = 65536 // @todo: move to config
 
 type Queue struct {
-	name        string
-	Consumers   []*Consumer
-	Messages    chan *Message
-	index       uint64
-	hub         *Hub
-	size 		uint64
+	Consumers []*Consumer
+
+	name     string
+	Messages chan *Message
+	index    uint64
+	hub      *Hub
+	size     uint64
+	lock     sync.Mutex
 }
 
 func NewQueue(name string) *Queue {
@@ -51,8 +53,6 @@ func (q *Queue) Enqueue(msg *Message) error {
 		return errors.New("queue is full")
 	}
 }
-
-
 
 func (q *Queue) listen() {
 	for msg := range q.Messages {
@@ -102,17 +102,24 @@ func (q *Queue) dispatch(msg *Message) {
 		go q.reqeue(msg)
 		return
 	} else if len(concopy) > 1 && !msg.broadcasting {
-		fmt.Println(concopy)
 		// sort consumers by number of sent messages (round-robin)
 		sort.Slice(concopy, func(i, j int) bool {
 			return concopy[i].sent > concopy[j].sent
 		})
 	}
 
+	q.lock.Lock()
 	q.Consumers = concopy
+	q.lock.Unlock()
+
 	atomic.AddUint64(&q.size, ^uint64(0))
 }
 
 func (q *Queue) reqeue(msg *Message) {
 	q.Messages <- msg
+}
+
+func (q *Queue) Dequeue(strings []string) *Message {
+	// @todo dequeue
+	return nil
 }

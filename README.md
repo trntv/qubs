@@ -1,3 +1,5 @@
+Simple message broker build on top of gRPC for development purposes.
+
 Run:
 ```
 go run cmd/cmd.go --debug
@@ -22,4 +24,5 @@ TODO:
 - [ ] embedded broker
 - [ ] usage
 - [ ] tests 
+- [ ] docker image
 - [ ] .....

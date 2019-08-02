@@ -3,10 +3,8 @@ package broker
 import "time"
 
 type Message struct {
-	Payload      []byte
+	Payload []byte
 
-	hub          string
-	queue        string
 	tags         []string
 	broadcasting bool
 	index        uint64
@@ -18,6 +16,6 @@ func NewMessage(tags []string, payload []byte, broadcasting bool) *Message {
 		tags:         tags,
 		Payload:      payload,
 		broadcasting: broadcasting,
-		queuedAt: time.Now(),
+		queuedAt:     time.Now(),
 	}
 }
