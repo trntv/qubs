@@ -15,6 +15,8 @@ Features:
 - batch publishing
 
 TODO:
+- [ ] Auth
+- [ ] HTTP/2 transport (push + pull)
 - [X] hubs
 - [x] tags
 - [x] cli command
