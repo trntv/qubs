@@ -16,11 +16,11 @@ func TestBroker_Dispatch(t *testing.T) {
 		//	hub:     strconv.Itoa(i % 16),
 		//	queue:   strconv.Itoa(i % 32),
 		//	tags:    []string{strconv.Itoa(i % 64)},
-		//	Payload: []byte{},
+		//	payload: []byte{},
 		//})
 	}
 
-	ai := broker.hubs["15"].queues["31"].index
+	ai := broker.hubs["15"].queues["31"].head
 	ei := uint64(math.Pow(2, 15))
 
 	if ai != ei {

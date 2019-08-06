@@ -1,3 +1,5 @@
+// +build amqp
+
 package amqp1
 
 import (
@@ -16,8 +18,8 @@ type amqpSender struct {
 	q *broker.Queue
 	s *broker.Consumer
 
-	mch chan broker.Message
-	rch chan sendResult
+	mch    chan broker.Message
+	rch    chan sendResult
 	closed bool
 }
 

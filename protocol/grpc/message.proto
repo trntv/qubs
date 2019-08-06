@@ -2,24 +2,22 @@ syntax = "proto3";
 package grpc;
 
 message Message {
-    string id = 1;
+    string seq = 1;
     string queue = 2;
     repeated string tags = 3;
     bytes payload = 4;
 }
 
 message Ack {
-    string id = 1;
+    string seq = 1;
 }
 
 message ConsumerConnect {
     string queue = 1;
-    repeated string tags = 2;
 }
 
 service queue {
     rpc Consume(ConsumerConnect) returns (stream Message) {}
     rpc Enqueue(Message) returns(Ack) {}
-    rpc EnqueueBatch(stream Message) returns(stream Ack) {}
 }
 

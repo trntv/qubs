@@ -1,30 +1,34 @@
-Simple message broker build on top of gRPC for development purposes.
+Simple message broker build for development purposes on top of gRPC. Has gRPC and HTTP/2 endpoints.
 
-Run:
+Run gRPC example:
 ```
-go run cmd/cmd.go --debug
-go run example/consumer.go
-go run example/producer.go
+go run cmd/cmd.go --debug --proto=grpc
+go run examples/grpc/consumer.go
+go run examples/grpc/producer.go
 ```
 
-Features:
-- hubs, queues, tags
-- gRPC-based queue
-- AMQP 1.0
-- round-robin, fanout
-- batch publishing
+Run HTTP example:
+```
+go run cmd/cmd.go --debug --proto=http --port=80
+```
+```
+curl -X POST \
+  http://127.0.0.1:80/some-queue-name \
+  -d '{
+	"payload": "VGVzdCBQYXlsb2Fk"
+}'
+```
+```
+curl http://127.0.0.1:80/some-queue-name
+```
 
 TODO:
-- [ ] Auth
-- [ ] HTTP/2 transport (push + pull)
-- [X] hubs
-- [x] tags
-- [x] cli command
-- [ ] batch publish
+- [ ] docker image
+- [ ] auth
+- [ ] messages metadata
 - [ ] ack/noack
 - [ ] client (consumer, producer)
 - [ ] embedded broker
 - [ ] usage
 - [ ] tests 
-- [ ] docker image
-- [ ] .....
+- [X] ... a lot of other items already done ...

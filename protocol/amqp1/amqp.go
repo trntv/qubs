@@ -1,9 +1,11 @@
+// +build amqp
+
 package amqp1
 
 import (
-"errors"
-"github.com/trntv/qubs/broker"
-"qpid.apache.org/amqp"
+	"errors"
+	"github.com/trntv/qubs/broker"
+	"qpid.apache.org/amqp"
 )
 
 func decodeAmqpMessage(msg amqp.Message) (*broker.Message, error) {
@@ -22,7 +24,7 @@ func decodeAmqpMessage(msg amqp.Message) (*broker.Message, error) {
 }
 
 func encodeAmqpMessage(msg *broker.Message) (amqp.Message, error) {
-	am := amqp.NewMessageWith(msg.Payload)
+	am := amqp.NewMessageWith(msg.Payload())
 
 	// @todo set properties
 

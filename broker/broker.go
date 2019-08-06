@@ -10,7 +10,7 @@ func NewBroker() *Broker {
 	}
 }
 
-func (b *Broker) GetQueue(hubName string, queueName string) *Queue {
+func (b *Broker) GetQueue(hubName string, queueName string) *queue {
 	return b.getHub(hubName).getQueue(queueName)
 }
 
@@ -27,7 +27,7 @@ func (b *Broker) createHub(name string) *Hub {
 	hub := &Hub{
 		name:   name,
 		broker: b,
-		queues: make(map[string]*Queue, 0),
+		queues: make(map[string]*queue, 0),
 	}
 
 	b.hubs[name] = hub

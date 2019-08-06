@@ -2,124 +2,122 @@ package broker
 
 import (
 	"errors"
-	"github.com/sirupsen/logrus"
-	"sort"
 	"sync"
 	"sync/atomic"
 )
 
-const QUEUE_SIZE = 65536 // @todo: move to config
-
-type Queue struct {
-	Consumers []*Consumer
-
-	name     string
-	Messages chan *Message
-	index    uint64
-	hub      *Hub
-	size     uint64
-	lock     sync.Mutex
+type Queue interface {
+	Deliver(msg *Message) error
+	Consume(fn func(*Message) error)
 }
 
-func NewQueue(name string) *Queue {
-	q := &Queue{
-		name:      name,
-		Messages:  make(chan *Message, QUEUE_SIZE),
-		Consumers: make([]*Consumer, 0),
+type queue struct {
+	seq uint64
+
+	messages  chan *Message
+	consumers []*Consumer
+
+	m_lock sync.Mutex
+	c_lock sync.Mutex
+}
+
+func NewQueue() *queue {
+	q := &queue{
+		messages: make(chan *Message, 65536),
 	}
-	go q.listen()
 
 	return q
 }
 
-func (q *Queue) RegisterConsumer(l Link, tags []string) *Consumer {
+func (q *queue) Deliver(msg *Message) error {
+	for {
+		cc := len(q.consumers)
+		if cc == 0 {
+			return q.Enqueue(msg)
+		}
+
+		seq := atomic.AddUint64(&q.seq, 1)
+		i := seq % uint64(len(q.consumers))
+		if q.consumers[i].link.IsClosed() {
+			q.removeConsumer(i)
+			continue
+		}
+
+		err := q.consumers[i].link.Send(msg)
+		if err != nil {
+			q.consumers[i].link.IsClosed()
+			return q.Enqueue(msg)
+		}
+
+		return nil
+	}
+}
+
+func (q *queue) Consume(fn func(*Message) error) {
+	msg := q.Dequeue()
+	err := fn(msg)
+	if err != nil {
+		_ = q.Enqueue(msg)
+	}
+}
+
+func (q *queue) Enqueue(msg *Message) error {
+	select {
+	case q.messages <- msg:
+	default:
+		return errors.New("queue is full")
+	}
+
+	return nil
+}
+
+func (q *queue) Dequeue() *Message {
+	q.m_lock.Lock()
+	defer q.m_lock.Unlock()
+
+	if len(q.messages) == 0 {
+		return nil
+	}
+
+	var msg *Message
+	select {
+	case msg = <-q.messages:
+	default:
+		return nil
+	}
+
+	return msg
+}
+
+func (q *queue) AddConsumer(l Link) *Consumer {
+	q.c_lock.Lock()
+	defer q.c_lock.Unlock()
+
 	c := &Consumer{
 		link: l,
-		tags: tags,
 	}
-	q.Consumers = append(q.Consumers, c)
+	q.consumers = append(q.consumers, c)
 
 	return c
 }
 
-func (q *Queue) Enqueue(msg *Message) error {
-	// @todo overflow -> rearrange Messages
-	msg.index = atomic.AddUint64(&q.index, 1)
-	select {
-	case q.Messages <- msg:
-		atomic.AddUint64(&q.size, 1)
-		return nil
-	default:
-		return errors.New("queue is full")
+func (q *queue) drain() {
+	for {
+		msg := q.Dequeue()
+		if msg == nil {
+			return
+		}
+
+		q.Deliver(msg)
 	}
 }
 
-func (q *Queue) listen() {
-	for msg := range q.Messages {
-		// @todo credits, block when no consumers
-		q.dispatch(msg)
-	}
-}
+func (q *queue) removeConsumer(i uint64) {
+	q.c_lock.Lock()
+	defer q.c_lock.Unlock()
 
-func (q *Queue) dispatch(msg *Message) {
-	var sent bool
-	concopy := make([]*Consumer, 0)
-	for _, c := range q.Consumers {
-		if c.link.IsClosed() {
-			continue
-		}
-
-		if len(msg.tags) > 0 && len(c.tags) > 0 {
-			var hasTag bool
-			for _, t := range msg.tags {
-				if c.hasTag(t) {
-					hasTag = true
-					break
-				}
-			}
-
-			if !hasTag {
-				concopy = append(concopy, c)
-				continue
-			}
-		}
-
-		err := c.link.Send(*msg)
-		if err != nil {
-			logrus.Error(err)
-			continue
-		}
-
-		sent = true
-		atomic.AddUint64(&c.sent, 1)
-		concopy = append(concopy, c)
-		if !msg.broadcasting {
-			break
-		}
-	}
-
-	if !sent {
-		go q.reqeue(msg)
-		return
-	} else if len(concopy) > 1 && !msg.broadcasting {
-		// sort consumers by number of sent messages (round-robin)
-		sort.Slice(concopy, func(i, j int) bool {
-			return concopy[i].sent > concopy[j].sent
-		})
-	}
-
-	q.lock.Lock()
-	q.Consumers = concopy
-	q.lock.Unlock()
-
-	atomic.AddUint64(&q.size, ^uint64(0))
-}
-
-func (q *Queue) reqeue(msg *Message) {
-	q.Messages <- msg
-}
-
-func (q *Queue) Dequeue(strings []string) *Message {
-	// @todo dequeue
-	return nil
+	cl := len(q.consumers)
+	copy(q.consumers[i:], q.consumers[i+1:])
+	q.consumers[cl-1] = nil
+	q.consumers = q.consumers[:cl-1]
 }

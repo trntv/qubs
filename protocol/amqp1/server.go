@@ -1,3 +1,5 @@
+// +build amqp
+
 package amqp1
 
 import (
@@ -18,7 +20,7 @@ type receivedMessage struct {
 }
 
 type AmqpConnectionHandler struct {
-	broker *broker.Broker
+	broker    *broker.Broker
 	receivers map[proton.Link]*amqpReceiver
 	senders   map[proton.Link]*amqpSender
 	injecter  proton.Injecter
@@ -48,7 +50,7 @@ func NewAmqpServer(b *broker.Broker) func(net.Listener) {
 func NewHandler(b *broker.Broker) func(conn net.Conn) {
 	return func(conn net.Conn) {
 		handler := &AmqpConnectionHandler{
-			broker: b,
+			broker:    b,
 			receivers: make(map[proton.Link]*amqpReceiver),
 			senders:   make(map[proton.Link]*amqpSender),
 		}
@@ -113,7 +115,7 @@ func (h *AmqpConnectionHandler) HandleMessagingEvent(t proton.MessagingEvent, e 
 	case proton.MSendable:
 		fmt.Println("Sendable!", e.Link())
 		if as, ok := h.senders[e.Link()]; ok {
-			as.s = as.q.RegisterConsumer(as, make([]string, 0))
+			as.s = as.q.AddConsumer(as, make([]string, 0))
 		} else {
 			proton.CloseError(e.Link(), amqp.Errorf(amqp.NotFound, "link %s amqpSender not found", e.Link()))
 		}
@@ -159,4 +161,3 @@ func (h *AmqpConnectionHandler) linkClosed(l proton.Link, err error) {
 		delete(h.receivers, l)
 	}
 }
-

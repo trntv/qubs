@@ -1,21 +1,36 @@
 package broker
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
-type Message struct {
-	Payload []byte
-
-	tags         []string
-	broadcasting bool
-	index        uint64
-	queuedAt     time.Time
+type delivery struct {
+	attempt  uint64
+	index    uint64
+	queuedAt time.Time
 }
 
-func NewMessage(tags []string, payload []byte, broadcasting bool) *Message {
+type Message struct {
+	payload      []byte
+	broadcasting bool
+	delivery     *delivery
+}
+
+func (m *Message) Id() string {
+	return strconv.FormatUint(m.delivery.index, 10)
+}
+
+func (m *Message) Payload() []byte {
+	return m.payload
+}
+
+func NewMessage(payload []byte, broadcasting bool) *Message {
 	return &Message{
-		tags:         tags,
-		Payload:      payload,
+		payload:      payload,
 		broadcasting: broadcasting,
-		queuedAt:     time.Now(),
+		delivery: &delivery{
+			queuedAt: time.Now(),
+		},
 	}
 }

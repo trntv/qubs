@@ -35,27 +35,29 @@ func NewHTTPServer(b *broker.Broker) protocol.Server {
 
 func (s *httpServer) handle(writer http.ResponseWriter, request *http.Request) {
 	var hub, queue string
-	parts := strings.Split("/", request.URL.Path)
-	if len(parts) == 2 {
+	parts := strings.Split(strings.TrimLeft(request.URL.Path, "/"), "/")
+
+	switch len(parts) {
+	case 2:
 		hub = parts[0]
 		queue = parts[1]
-	} else if len(parts) == 1 {
+	case 1:
 		hub = "default"
 		queue = parts[0]
-	} else {
+	default:
 		writer.WriteHeader(400)
 		return
 	}
 
 	switch request.Method {
 	case "GET":
-		tags := request.URL.Query().Get("tags")
-		msg, ok := s.dequeue(hub, queue, strings.Split(tags, ","))
+		msg, ok := s.dequeue(hub, queue)
 		if !ok {
 			writer.WriteHeader(204)
 			return
 		}
 
+		writer.Header().Add("Content-Type", "application/json")
 		err := json.NewEncoder(writer).Encode(msg)
 		if err != nil {
 			logrus.Error(err)
@@ -76,6 +78,7 @@ func (s *httpServer) handle(writer http.ResponseWriter, request *http.Request) {
 			writer.WriteHeader(500)
 			writer.Write([]byte(err.Error()))
 		}
+		logrus.Debugf("enqueued to %s:%s", hub, queue)
 		writer.WriteHeader(200)
 	case "HEAD":
 		writer.WriteHeader(200)
@@ -85,17 +88,17 @@ func (s *httpServer) handle(writer http.ResponseWriter, request *http.Request) {
 }
 
 func (s *httpServer) enqueue(hub string, queue string, msg *httpMessage) error {
-	return s.b.GetQueue(hub, queue).Enqueue(broker.NewMessage(msg.Tags, msg.Payload, msg.Broadcast))
+	return s.b.GetQueue(hub, queue).Enqueue(broker.NewMessage(msg.Payload, msg.Broadcast))
 }
 
-func (s *httpServer) dequeue(hub string, queue string, tags []string) (*httpMessage, bool) {
+func (s *httpServer) dequeue(hub string, queue string) (*httpMessage, bool) {
 	q := s.b.GetQueue(hub, queue)
-	msg := q.Dequeue(tags)
+	msg := q.Dequeue()
 	if msg == nil {
 		return nil, false
 	}
 
 	return &httpMessage{
-		Payload: msg.Payload,
+		Payload: msg.Payload(),
 	}, true
 }

@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/trntv/qubs/broker"
 	"google.golang.org/grpc/metadata"
@@ -15,35 +14,14 @@ type queueServer struct {
 
 func (qs *queueServer) Enqueue(ctx context.Context, msg *Message) (*Ack, error) {
 	hubs := resolveHubs(ctx)
+	cmsg := broker.NewMessage(msg.Payload, false)
+
 	for _, hub := range hubs {
-		cmsg := broker.NewMessage(msg.Tags, msg.Payload, false)
 		q := qs.b.GetQueue(hub, msg.Queue)
-		_ = q.Enqueue(cmsg) // @todo: errors handling
+		_ = q.Enqueue(cmsg)
 	}
 
-	return &Ack{Id: msg.Id}, nil
-}
-
-func (qs *queueServer) EnqueueBatch(stream Queue_EnqueueBatchServer) error {
-	hubs := resolveHubs(stream.Context())
-	for {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		fmt.Printf("%v\r\n", msg)
-
-		for _, hub := range hubs {
-			cmsg := broker.NewMessage(msg.Tags, msg.Payload, false)
-			q := qs.b.GetQueue(hub, msg.Queue)
-			_ = q.Enqueue(cmsg) // @todo: errors handling
-		}
-	}
-
-	return nil
+	return &Ack{Seq: cmsg.Id()}, nil
 }
 
 func (qs *queueServer) Consume(msg *ConsumerConnect, stream Queue_ConsumeServer) error {
@@ -54,7 +32,7 @@ func (qs *queueServer) Consume(msg *ConsumerConnect, stream Queue_ConsumeServer)
 
 	for _, hub := range hubs {
 		q := qs.b.GetQueue(hub, msg.Queue)
-		q.RegisterConsumer(l, msg.Tags)
+		q.AddConsumer(l)
 	}
 
 	err := l.run()
@@ -65,13 +43,13 @@ func (qs *queueServer) Consume(msg *ConsumerConnect, stream Queue_ConsumeServer)
 
 type consumerLink struct {
 	stream Queue_ConsumeServer
-	q chan bool
+	q      chan bool
 	closed bool
 }
 
-func (l *consumerLink) Send(msg broker.Message) error {
+func (l *consumerLink) Send(msg *broker.Message) error {
 	return l.stream.Send(&Message{
-		Payload: msg.Payload,
+		Payload: msg.Payload(),
 	})
 }
 
@@ -111,5 +89,3 @@ func resolveHubs(ctx context.Context) []string {
 
 	return hubs
 }
-
-

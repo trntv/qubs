@@ -1,3 +1,5 @@
+// +build amqp
+
 package amqp1
 
 import (
@@ -10,10 +12,10 @@ import (
 // AmqpConnectionHandler and are waiting to go on the queue. AMQP credit ensures that the
 // AmqpConnectionHandler does not overflow the buffer and block.
 type amqpReceiver struct {
-	l proton.Link
-	h *AmqpConnectionHandler
+	l      proton.Link
+	h      *AmqpConnectionHandler
 	buffer chan receivedMessage
-	queue *broker.Queue
+	queue  *broker.Queue
 }
 
 // run runs in a separate goroutine. It moves messages from the buffer to the
@@ -30,7 +32,7 @@ func (r *amqpReceiver) run() {
 
 		// We are not in the AmqpConnectionHandler goroutine so we Inject the Accept function as a closure.
 		err = r.h.injecter.Inject(func() {
-			r.queue.Enqueue(msg)
+			r.queue.Deliver(msg)
 			if r == r.h.receivers[r.l] {
 				d.Accept()  // Accept the delivery
 				r.l.Flow(1) // Add one credit

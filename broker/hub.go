@@ -1,16 +1,16 @@
 package broker
 
 type Hub struct {
-	name string
-	size uint64
-	queues map[string]*Queue
+	name   string
+	size   uint64
+	queues map[string]*queue
 	broker *Broker
 }
 
-func (h *Hub) getQueue(name string) *Queue {
+func (h *Hub) getQueue(name string) *queue {
 	queue, ok := h.queues[name]
 	if !ok {
-		queue = NewQueue(name)
+		queue = NewQueue()
 		h.queues[name] = queue
 	}
 
