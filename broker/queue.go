@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 )
@@ -14,8 +13,10 @@ type Queue interface {
 type queue struct {
 	seq uint64
 
-	messages  chan *Message
+	messages  map[uint64]*Message
 	consumers []*Consumer
+
+	head, tail uint64
 
 	m_lock sync.Mutex
 	c_lock sync.Mutex
@@ -23,7 +24,7 @@ type queue struct {
 
 func NewQueue() *queue {
 	q := &queue{
-		messages: make(chan *Message, 65536),
+		messages: make(map[uint64]*Message),
 	}
 
 	return q
@@ -62,11 +63,15 @@ func (q *queue) Consume(fn func(*Message) error) {
 }
 
 func (q *queue) Enqueue(msg *Message) error {
-	select {
-	case q.messages <- msg:
-	default:
-		return errors.New("queue is full")
-	}
+	q.m_lock.Lock()
+	defer q.m_lock.Unlock()
+
+	head := q.head
+	q.head = q.head + 1
+	q.messages[head] = msg
+
+	msg.delivery.attempt++
+	msg.delivery.index = head
 
 	return nil
 }
@@ -75,18 +80,14 @@ func (q *queue) Dequeue() *Message {
 	q.m_lock.Lock()
 	defer q.m_lock.Unlock()
 
-	if len(q.messages) == 0 {
+	if q.tail == q.head {
 		return nil
 	}
 
-	var msg *Message
-	select {
-	case msg = <-q.messages:
-	default:
-		return nil
-	}
+	tail := q.tail
+	q.tail = q.tail + 1
 
-	return msg
+	return q.messages[tail]
 }
 
 func (q *queue) AddConsumer(l Link) *Consumer {
